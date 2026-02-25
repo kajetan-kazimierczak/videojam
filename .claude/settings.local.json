@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(openspec list:*)"
+      "Bash(openspec list:*)",
+      "Bash(git -C:*)"
     ]
   }
 }
