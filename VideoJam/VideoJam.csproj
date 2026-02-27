@@ -21,6 +21,8 @@
 
     <!-- DPI-aware manifest for correct VlcDisplayWindow placement on HiDPI displays -->
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <Version>0.3.0</Version>
   </PropertyGroup>
 
   <!-- System.IO (FileInfo, DirectoryInfo) is not in the WPF SDK's implicit usings -->
