@@ -48,7 +48,16 @@ public partial class MainWindow : Window {
 		var folder = new DirectoryInfo(dialog.FolderName);
 
 		try {
-			_manifest = SongScanner.Scan(folder, displayRouting: new Dictionary<string, int>());
+			// Phase 3 harness: auto-route each unique suffix to a sequential display index.
+			// First distinct suffix found → display 0, second → display 1, etc.
+			// Real routing comes from the .show file in Phase 4.
+			SongManifest rawManifest = SongScanner.Scan(folder);
+			var autoRouting = new Dictionary<string, int>();
+			int nextDisplayIndex = DisplayManager.PrimaryDisplayIndex;
+			foreach (string suffix in rawManifest.VideoFiles.Select(v => v.Suffix).Distinct())
+				autoRouting[suffix] = nextDisplayIndex++;
+
+			_manifest = SongScanner.Scan(folder, displayRouting: autoRouting);
 
 			FolderLabel.Text = folder.FullName;
 			SetStatus("Folder loaded");
