@@ -81,7 +81,7 @@ A `VlcDisplayWindow` SHALL support two display states: **Fallback** (showing a s
 
 #### Scenario: Elapsed time is logged
 - **WHEN** `VideoEngine.Play(timestamp)` completes
-- **THEN** the time elapsed since `audioStartTimestamp` is recorded in the log at `Debug` level
+- **THEN** the time elapsed since `audioStartTimestamp` is recorded in the log at `Debug` level by `SyncCoordinator` (which captures the post-`video.Play()` timestamp and emits the single authoritative Δt entry — `VideoEngine.Play()` itself logs only the MediaPlayer dispatch count)
 
 ---
 

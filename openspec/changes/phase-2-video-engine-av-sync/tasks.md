@@ -37,5 +37,5 @@
 - [x] 5.4 On "Play" button click: call `SyncCoordinator.Start(audioEngine, videoEngine)` instead of (or in addition to) the direct `AudioEngine.Play()` call from Phase 1
 - [x] 5.5 On "Stop" button click: call `AudioEngine.Stop()` and `VideoEngine.Stop()`; ensure `VlcDisplayWindow` returns to fallback state
 - [x] 5.6 Wire `AudioEngine.PlaybackEnded` event: when fired, call `VideoEngine.Stop()` and update the status label to "Stopped"
-- [ ] 5.7 Manual A/V sync verification: play a known-good test set (at least one MP4 with a visible frame-count overlay or audio cue); confirm audio and video start together with no perceptible offset; check the Debug log for the Δt value
-- [ ] 5.8 Audio isolation test: play a video file that has loud embedded audio; confirm no audio bleed from VLC through the Windows audio mixer — only NAudio stems are audible
+- [x] 5.7 Manual A/V sync verification: play a known-good test set (at least one MP4 with a visible frame-count overlay or audio cue); confirm audio and video start together with no perceptible offset; check the Debug log for the Δt value
+- [x] 5.8 Audio isolation test: play a video file that has loud embedded audio; confirm no audio bleed from VLC through the Windows audio mixer — only NAudio stems are audible
