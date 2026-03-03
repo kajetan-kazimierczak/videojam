@@ -38,6 +38,6 @@
 
 ## 6. Manual Smoke Tests
 
-- [ ] 6.1 Connect a second display; launch the app; load a folder containing two MP4 files with different suffixes; configure routing so each suffix maps to a different display index; press Play — verify two `VlcDisplayWindow` instances appear, one on each physical display, each covering its screen edge-to-edge
-- [ ] 6.2 Verify A/V sync is preserved with two simultaneous video streams — both displays start video at the same moment audio begins; check Debug log for the `A/V dispatch Δt` value
+- [x] 6.1 Connect a second display; launch the app; load a folder containing two MP4 files with different suffixes; configure routing so each suffix maps to a different display index; press Play — verify two `VlcDisplayWindow` instances appear, one on each physical display, each covering its screen edge-to-edge
+- [x] 6.2 Verify A/V sync is preserved with two simultaneous video streams — both displays start video at the same moment audio begins; check Debug log for the `A/V dispatch Δt` value
 - [ ] 6.3 Verify graceful degradation: deliberately point one video path at a missing file; confirm audio plays, the valid display shows video, and the invalid display shows fallback black — no crash, no audio interruption

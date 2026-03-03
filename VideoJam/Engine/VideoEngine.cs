@@ -131,20 +131,32 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 
 		player.Paused += OnPlayerPaused;
 
-		player.Play();
-		// Immediately pause so VLC primes the decoder but does not run the clock.
-		player.SetPause(true);
-
 		using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		timeoutCts.CancelAfter(PreBufferTimeoutMs);
 
 		bool prebufferSucceeded;
 		try {
+			player.Play();
+			// Immediately pause so VLC primes the decoder but does not run the clock.
+			player.SetPause(true);
 			await prebufferTcs.Task.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
 			prebufferSucceeded = true;
 		}
 		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
 			// Timed out (not cancelled by the caller) — abort this slot.
+			_logger.LogWarning(
+				"Pre-buffer for {File} did not complete within {TimeoutMs} ms. " +
+				"Display {DisplayIndex} will show its fallback image during playback.",
+				videoFile.File.Name, PreBufferTimeoutMs, displayIndex);
+			prebufferSucceeded = false;
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException) {
+			// LibVLC raised an error (e.g. file not found, codec failure) — treat as a graceful
+			// pre-buffer failure so a single bad file does not abort the entire playback session.
+			_logger.LogWarning(ex,
+				"Pre-buffer for {File} on display {DisplayIndex} failed with an exception. " +
+				"The display will show its fallback image during playback.",
+				videoFile.File.Name, displayIndex);
 			prebufferSucceeded = false;
 		}
 		finally {
@@ -152,12 +164,6 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 		}
 
 		if (!prebufferSucceeded) {
-			// Pre-buffer did not complete in time. Dispose the player and leave the window
-			// in fallback state. Audio will still play; this display will show its fallback image.
-			_logger.LogWarning(
-				"Pre-buffer for {File} did not complete within {TimeoutMs} ms. " +
-				"Display {DisplayIndex} will show its fallback image during playback.",
-				videoFile.File.Name, PreBufferTimeoutMs, displayIndex);
 			player.Dispose();
 			return;
 		}

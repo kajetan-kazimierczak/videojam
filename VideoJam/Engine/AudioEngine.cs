@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows;
+using Microsoft.Extensions.Logging;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using VideoJam.Model;
@@ -48,10 +49,21 @@ internal sealed class AudioEngine : IDisposable, IAudioPlayback {
 
 	// ── State ────────────────────────────────────────────────────────────────
 
+	private readonly ILogger<AudioEngine> _logger;
 	private readonly List<IDisposable> _readers = [];
 	private WasapiOut? _wasapiOut;
 	private bool _stoppedExplicitly;
 	private bool _disposed;
+
+	// ── Construction ─────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// Initialises a new <see cref="AudioEngine"/>.
+	/// </summary>
+	/// <param name="logger">Logger for diagnostic and warning output.</param>
+	public AudioEngine(ILogger<AudioEngine> logger) {
+		_logger = logger;
+	}
 
 	// ── Public API ───────────────────────────────────────────────────────────
 
@@ -87,7 +99,17 @@ internal sealed class AudioEngine : IDisposable, IAudioPlayback {
 		var sampleProviders = new List<ISampleProvider>();
 
 		foreach (AudioChannelManifest channel in manifest.AudioChannels) {
-			AudioReader reader = CreateReader(channel.File);
+			AudioReader reader;
+			try {
+				reader = CreateReader(channel.File);
+			}
+			catch (Exception ex) {
+				_logger.LogWarning(ex,
+					"Audio channel {ChannelId} ({File}) could not be loaded — the channel will be skipped.",
+					channel.ChannelId, channel.File.Name);
+				continue;
+			}
+
 			_readers.Add(reader);
 
 			// Resample to the common mix format if needed.

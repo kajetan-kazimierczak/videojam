@@ -122,7 +122,7 @@ public partial class MainWindow : Window {
 				};
 			}
 
-			_audioEngine = new AudioEngine();
+			_audioEngine = new AudioEngine(loggerFactory.CreateLogger<AudioEngine>());
 			_audioEngine.PlaybackEnded += OnPlaybackEnded;
 			_audioEngine.Load(_manifest, channelSettings);
 
