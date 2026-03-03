@@ -131,20 +131,32 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 
 		player.Paused += OnPlayerPaused;
 
-		player.Play();
-		// Immediately pause so VLC primes the decoder but does not run the clock.
-		player.SetPause(true);
-
 		using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		timeoutCts.CancelAfter(PreBufferTimeoutMs);
 
 		bool prebufferSucceeded;
 		try {
+			player.Play();
+			// Immediately pause so VLC primes the decoder but does not run the clock.
+			player.SetPause(true);
 			await prebufferTcs.Task.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
 			prebufferSucceeded = true;
 		}
 		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
 			// Timed out (not cancelled by the caller) — abort this slot.
+			_logger.LogWarning(
+				"Pre-buffer for {File} did not complete within {TimeoutMs} ms. " +
+				"Display {DisplayIndex} will show its fallback image during playback.",
+				videoFile.File.Name, PreBufferTimeoutMs, displayIndex);
+			prebufferSucceeded = false;
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException) {
+			// LibVLC raised an error (e.g. file not found, codec failure) — treat as a graceful
+			// pre-buffer failure so a single bad file does not abort the entire playback session.
+			_logger.LogWarning(ex,
+				"Pre-buffer for {File} on display {DisplayIndex} failed with an exception. " +
+				"The display will show its fallback image during playback.",
+				videoFile.File.Name, displayIndex);
 			prebufferSucceeded = false;
 		}
 		finally {
@@ -152,12 +164,6 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 		}
 
 		if (!prebufferSucceeded) {
-			// Pre-buffer did not complete in time. Dispose the player and leave the window
-			// in fallback state. Audio will still play; this display will show its fallback image.
-			_logger.LogWarning(
-				"Pre-buffer for {File} did not complete within {TimeoutMs} ms. " +
-				"Display {DisplayIndex} will show its fallback image during playback.",
-				videoFile.File.Name, PreBufferTimeoutMs, displayIndex);
 			player.Dispose();
 			return;
 		}
@@ -177,6 +183,42 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 
 		// Local helper — signal the TCS from the VLC event thread.
 		void OnPlayerPaused(object? s, EventArgs e) => prebufferTcs.TrySetResult(true);
+	}
+
+	/// <summary>
+	/// Loads video files for all display slots in <paramref name="windows"/> concurrently,
+	/// awaiting all pre-buffer operations via <see cref="Task.WhenAll"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Each entry in <paramref name="windows"/> is passed as a separate <see cref="Load"/>
+	/// call dispatched in parallel. Partial failure is handled gracefully: if a <see cref="Load"/>
+	/// times out during pre-buffering it returns without registering a slot (per the
+	/// pre-buffer timeout contract) and <see cref="LoadAll"/> still completes normally.
+	/// An unhandled exception from any slot propagates out of <see cref="LoadAll"/>.
+	/// </para>
+	/// <para>
+	/// If <paramref name="windows"/> is empty, the method completes immediately without error.
+	/// </para>
+	/// </remarks>
+	/// <param name="manifest">The song manifest produced by <c>SongScanner</c>.</param>
+	/// <param name="windows">
+	/// Map of display index → <see cref="VlcDisplayWindow"/>. One <see cref="Load"/> call
+	/// is dispatched per entry.
+	/// </param>
+	/// <param name="cancellationToken">Cancellation token propagated to every <see cref="Load"/> call.</param>
+	public Task LoadAll(
+		SongManifest manifest,
+		IReadOnlyDictionary<int, VlcDisplayWindow> windows,
+		CancellationToken cancellationToken = default) {
+
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		Task[] tasks = windows
+			.Select(kvp => Load(manifest, kvp.Key, kvp.Value, cancellationToken))
+			.ToArray();
+
+		return Task.WhenAll(tasks);
 	}
 
 	/// <summary>
