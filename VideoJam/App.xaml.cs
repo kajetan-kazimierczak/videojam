@@ -21,7 +21,7 @@ public partial class App : Application {
 	private static extern bool AttachConsole(int dwProcessId);
 
 	/// <summary>Sentinel value: attach to the console of the immediate parent process.</summary>
-	private const int AttachParentProcess = -1;
+	private const int ATTACH_PARENT_PROCESS = -1;
 
 	// ── Startup ───────────────────────────────────────────────────────────────
 
@@ -33,16 +33,16 @@ public partial class App : Application {
 		// sink has somewhere to write. WinExe processes are spawned detached from
 		// the parent console; AttachConsole(-1) reconnects them. If the app was
 		// launched by double-click there is no parent console and this is a no-op.
-		if (AttachConsole(AttachParentProcess)) {
+		if (AttachConsole(ATTACH_PARENT_PROCESS)) {
 			Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
 			Console.SetError(new StreamWriter(Console.OpenStandardError()) { AutoFlush = true });
 		}
 
-		string?  exePath  = Environment.ProcessPath;
-		Version? version  = Assembly.GetEntryAssembly()?.GetName().Version;
-		DateTime exeStamp = exePath is not null ? new FileInfo(exePath).LastWriteTime : DateTime.MinValue;
+		var exePath = Environment.ProcessPath;
+		var version = Assembly.GetEntryAssembly()?.GetName().Version;
+		var exeStamp = exePath is not null ? new FileInfo(exePath).LastWriteTime : DateTime.MinValue;
 
-		using ILoggerFactory loggerFactory = LoggerFactory.Create(b =>
+		using var loggerFactory = LoggerFactory.Create(b =>
 			b.AddConsole().SetMinimumLevel(LogLevel.Information));
 
 		loggerFactory

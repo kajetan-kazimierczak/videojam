@@ -19,19 +19,12 @@ public sealed class AudioReaderTests {
 	/// A minimal <see cref="ISampleProvider"/> stub whose <see cref="WaveFormat"/> and
 	/// <see cref="Read"/> behaviour can be configured at construction time.
 	/// </summary>
-	private sealed class StubSampleProvider : ISampleProvider {
-		private readonly float[] _samples;
-
-		public StubSampleProvider(WaveFormat format, float[] samples) {
-			WaveFormat = format;
-			_samples   = samples;
-		}
-
-		public WaveFormat WaveFormat { get; }
+	private sealed class StubSampleProvider(WaveFormat format, float[] samples) : ISampleProvider {
+		public WaveFormat WaveFormat { get; } = format;
 
 		public int Read(float[] buffer, int offset, int count) {
-			int toCopy = Math.Min(count, _samples.Length);
-			Array.Copy(_samples, 0, buffer, offset, toCopy);
+			var toCopy = Math.Min(count, samples.Length);
+			Array.Copy(samples, 0, buffer, offset, toCopy);
 			return toCopy;
 		}
 	}
@@ -47,7 +40,7 @@ public sealed class AudioReaderTests {
 
 	// ── Convenience factories ─────────────────────────────────────────────────
 
-	private static WaveFormat StereoFloat44k =>
+	private static WaveFormat StereoFloat44K =>
 		WaveFormat.CreateIeeeFloatWaveFormat(44_100, 2);
 
 	// ── WaveFormat delegation ─────────────────────────────────────────────────
@@ -59,9 +52,9 @@ public sealed class AudioReaderTests {
 	/// </summary>
 	[Fact]
 	public void WaveFormat_DelegatesToSource() {
-		WaveFormat expected = StereoFloat44k;
-		var        source   = new StubSampleProvider(expected, []);
-		var        owner    = new SpyDisposable();
+		var expected = StereoFloat44K;
+		var source = new StubSampleProvider(expected, []);
+		var owner = new SpyDisposable();
 
 		using var reader = new AudioReader(owner, source);
 
@@ -75,16 +68,16 @@ public sealed class AudioReaderTests {
 	/// </summary>
 	[Fact]
 	public void Read_DelegatesToSourceAndReturnsSourceCount() {
-		float[] data   = [0.1f, 0.2f, 0.3f, 0.4f];
-		var     source = new StubSampleProvider(StereoFloat44k, data);
-		var     owner  = new SpyDisposable();
+		float[] data = [0.1f, 0.2f, 0.3f, 0.4f];
+		var source = new StubSampleProvider(StereoFloat44K, data);
+		var owner = new SpyDisposable();
 
 		using var reader = new AudioReader(owner, source);
 
-		float[] buffer = new float[4];
-		int     count  = reader.Read(buffer, 0, 4);
+		var buffer = new float[4];
+		var count = reader.Read(buffer, 0, 4);
 
-		Assert.Equal(4,    count);
+		Assert.Equal(4, count);
 		Assert.Equal(data, buffer);
 	}
 
@@ -94,13 +87,13 @@ public sealed class AudioReaderTests {
 	/// </summary>
 	[Fact]
 	public void Read_RespectsOffset() {
-		float[] data   = [0.5f, 0.6f];
-		var     source = new StubSampleProvider(StereoFloat44k, data);
-		var     owner  = new SpyDisposable();
+		float[] data = [0.5f, 0.6f];
+		var source = new StubSampleProvider(StereoFloat44K, data);
+		var owner = new SpyDisposable();
 
 		using var reader = new AudioReader(owner, source);
 
-		float[] buffer = new float[4]; // pre-zeroed
+		var buffer = new float[4]; // pre-zeroed
 		reader.Read(buffer, offset: 2, count: 2);
 
 		Assert.Equal(0.0f, buffer[0]); // untouched
@@ -117,8 +110,8 @@ public sealed class AudioReaderTests {
 	/// </summary>
 	[Fact]
 	public void Dispose_DisposesOwner() {
-		var source = new StubSampleProvider(StereoFloat44k, []);
-		var owner  = new SpyDisposable();
+		var source = new StubSampleProvider(StereoFloat44K, []);
+		var owner = new SpyDisposable();
 
 		var reader = new AudioReader(owner, source);
 		reader.Dispose();
@@ -137,8 +130,8 @@ public sealed class AudioReaderTests {
 		// source is a plain StubSampleProvider (not IDisposable).
 		// If AudioReader tried to dispose the source it would have to cast —
 		// that would throw or fail silently, detectable by checking owner was reached.
-		var source = new StubSampleProvider(StereoFloat44k, []);
-		var owner  = new SpyDisposable();
+		var source = new StubSampleProvider(StereoFloat44K, []);
+		var owner = new SpyDisposable();
 
 		var reader = new AudioReader(owner, source);
 		reader.Dispose(); // must not throw
@@ -153,7 +146,7 @@ public sealed class AudioReaderTests {
 	/// </summary>
 	[Fact]
 	public void Dispose_OwnerAndSourceSameObject_DisposedOnce() {
-		var spy = new SpyDisposableSampleProvider(StereoFloat44k, []);
+		var spy = new SpyDisposableSampleProvider(StereoFloat44K, []);
 
 		var reader = new AudioReader(owner: spy, source: spy);
 		reader.Dispose();
@@ -166,20 +159,13 @@ public sealed class AudioReaderTests {
 	/// <see cref="ISampleProvider"/>, modelling the <c>AudioFileReader</c> case
 	/// (WAV / MP3) where owner and source are the same object. Counts dispose calls.
 	/// </summary>
-	private sealed class SpyDisposableSampleProvider : ISampleProvider, IDisposable {
-		private readonly float[] _samples;
-
-		public SpyDisposableSampleProvider(WaveFormat format, float[] samples) {
-			WaveFormat = format;
-			_samples   = samples;
-		}
-
-		public WaveFormat WaveFormat  { get; }
-		public int        DisposeCount { get; private set; }
+	private sealed class SpyDisposableSampleProvider(WaveFormat format, float[] samples) : ISampleProvider, IDisposable {
+		public WaveFormat WaveFormat { get; } = format;
+		public int DisposeCount { get; private set; }
 
 		public int Read(float[] buffer, int offset, int count) {
-			int toCopy = Math.Min(count, _samples.Length);
-			Array.Copy(_samples, 0, buffer, offset, toCopy);
+			var toCopy = Math.Min(count, samples.Length);
+			Array.Copy(samples, 0, buffer, offset, toCopy);
 			return toCopy;
 		}
 

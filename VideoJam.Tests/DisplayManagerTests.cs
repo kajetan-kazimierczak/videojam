@@ -11,7 +11,7 @@ public sealed class DisplayManagerTests {
 	public void ResolveDisplayIndex_SuffixFoundInRouting_ReturnsMappedIndex() {
 		var routing = new Dictionary<string, int> { ["_lyrics"] = 1, ["_visuals"] = 2 };
 
-		int result = DisplayManager.ResolveDisplayIndex("_lyrics", routing);
+		var result = DisplayManager.ResolveDisplayIndex("_lyrics", routing);
 
 		Assert.Equal(1, result);
 	}
@@ -20,25 +20,25 @@ public sealed class DisplayManagerTests {
 	public void ResolveDisplayIndex_SuffixNotInRouting_ReturnsPrimaryDisplayIndex() {
 		var routing = new Dictionary<string, int> { ["_lyrics"] = 1 };
 
-		int result = DisplayManager.ResolveDisplayIndex("_unknown", routing);
+		var result = DisplayManager.ResolveDisplayIndex("_unknown", routing);
 
-		Assert.Equal(DisplayManager.PrimaryDisplayIndex, result);
+		Assert.Equal(DisplayManager.PRIMARY_DISPLAY_INDEX, result);
 	}
 
 	[Fact]
 	public void ResolveDisplayIndex_EmptyRouting_ReturnsPrimaryDisplayIndex() {
-		int result = DisplayManager.ResolveDisplayIndex("_lyrics", new Dictionary<string, int>());
+		var result = DisplayManager.ResolveDisplayIndex("_lyrics", new Dictionary<string, int>());
 
-		Assert.Equal(DisplayManager.PrimaryDisplayIndex, result);
+		Assert.Equal(DisplayManager.PRIMARY_DISPLAY_INDEX, result);
 	}
 
 	[Fact]
 	public void ResolveDisplayIndex_EmptySuffixNotInRouting_ReturnsPrimaryDisplayIndex() {
 		var routing = new Dictionary<string, int> { ["_lyrics"] = 1 };
 
-		int result = DisplayManager.ResolveDisplayIndex(string.Empty, routing);
+		var result = DisplayManager.ResolveDisplayIndex(string.Empty, routing);
 
-		Assert.Equal(DisplayManager.PrimaryDisplayIndex, result);
+		Assert.Equal(DisplayManager.PRIMARY_DISPLAY_INDEX, result);
 	}
 
 	// ── GetRequiredDisplayIndices ─────────────────────────────────────────────
@@ -55,7 +55,7 @@ public sealed class DisplayManagerTests {
 				new VideoFileManifest(new FileInfo("c.mp4"), DisplayIndex: 1, Suffix: "_c"),
 			]);
 
-		IReadOnlyCollection<int> result = DisplayManager.GetRequiredDisplayIndices(manifest);
+		var result = DisplayManager.GetRequiredDisplayIndices(manifest);
 
 		Assert.Equal(2, result.Count);
 		Assert.Contains(0, result);
@@ -70,7 +70,7 @@ public sealed class DisplayManagerTests {
 			AudioChannels: [],
 			VideoFiles: []);
 
-		IReadOnlyCollection<int> result = DisplayManager.GetRequiredDisplayIndices(manifest);
+		var result = DisplayManager.GetRequiredDisplayIndices(manifest);
 
 		Assert.Empty(result);
 	}
@@ -79,6 +79,6 @@ public sealed class DisplayManagerTests {
 
 	[Fact]
 	public void PrimaryDisplayIndex_IsZero() {
-		Assert.Equal(0, DisplayManager.PrimaryDisplayIndex);
+		Assert.Equal(0, DisplayManager.PRIMARY_DISPLAY_INDEX);
 	}
 }

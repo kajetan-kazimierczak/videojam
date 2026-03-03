@@ -15,15 +15,15 @@ namespace VideoJam.UI;
 public partial class MainWindow : Window {
 	// ── Engines ───────────────────────────────────────────────────────────────
 
-	private AudioEngine?     _audioEngine;
-	private VideoEngine?     _videoEngine;
-	private SyncCoordinator? _syncCoordinator;
+	private AudioEngine? audioEngine;
+	private VideoEngine? videoEngine;
+	private SyncCoordinator? syncCoordinator;
 
 	// ── Loaded data ───────────────────────────────────────────────────────────
 
-	private SongManifest?                    _manifest;
-	private Dictionary<int, VlcDisplayWindow> _displayWindows = [];
-	private string?                          _videoFilePath;
+	private SongManifest? manifest;
+	private Dictionary<int, VlcDisplayWindow> displayWindows = [];
+	private string? videoFilePath;
 
 	// ── Construction ──────────────────────────────────────────────────────────
 
@@ -50,13 +50,13 @@ public partial class MainWindow : Window {
 			// Phase 3 harness: auto-route each unique suffix to a sequential display index.
 			// First distinct suffix found → display 0, second → display 1, etc.
 			// Real routing comes from the .show file in Phase 4.
-			SongManifest rawManifest = SongScanner.Scan(folder);
+			var rawManifest = SongScanner.Scan(folder);
 			var autoRouting = new Dictionary<string, int>();
-			int nextDisplayIndex = DisplayManager.PrimaryDisplayIndex;
-			foreach (string suffix in rawManifest.VideoFiles.Select(v => v.Suffix).Distinct())
+			var nextDisplayIndex = DisplayManager.PRIMARY_DISPLAY_INDEX;
+			foreach (var suffix in rawManifest.VideoFiles.Select(v => v.Suffix).Distinct())
 				autoRouting[suffix] = nextDisplayIndex++;
 
-			_manifest = SongScanner.Scan(folder, displayRouting: autoRouting);
+			manifest = SongScanner.Scan(folder, displayRouting: autoRouting);
 
 			FolderLabel.Text = folder.FullName;
 			SetStatus("Folder loaded");
@@ -75,39 +75,39 @@ public partial class MainWindow : Window {
 
 	private void OnLoadVideoClicked(object sender, RoutedEventArgs e) {
 		var dialog = new OpenFileDialog {
-			Title  = "Select a video file (MP4)",
+			Title = "Select a video file (MP4)",
 			Filter = "MP4 Video|*.mp4|All files|*.*",
 		};
 
 		if (dialog.ShowDialog(this) != true)
 			return;
 
-		_videoFilePath  = dialog.FileName;
-		VideoLabel.Text = System.IO.Path.GetFileName(_videoFilePath);
+		videoFilePath = dialog.FileName;
+		VideoLabel.Text = System.IO.Path.GetFileName(videoFilePath);
 
 		UpdatePlayButtonState();
 	}
 
 	private async void OnPlayClicked(object sender, RoutedEventArgs e) {
-		if (_manifest is null) return;
+		if (manifest is null) return;
 
 		// FIX #1: Dispose stale engines from a previous natural-end cycle before
 		// creating new ones. OnPlaybackEnded intentionally skips CleanupAll() to
 		// preserve _manifest and _videoFilePath for replay, so stale engine instances
 		// can survive until the next Play press. Dispose them here.
-		if (_audioEngine is not null) {
-			_audioEngine.PlaybackEnded -= OnPlaybackEnded;
-			_audioEngine.Dispose();
-			_audioEngine = null;
+		if (audioEngine is not null) {
+			audioEngine.PlaybackEnded -= OnPlaybackEnded;
+			audioEngine.Dispose();
+			audioEngine = null;
 		}
-		_videoEngine?.Dispose();
-		_videoEngine = null;
+		videoEngine?.Dispose();
+		videoEngine = null;
 		CloseDisplayWindow();
 
 		SetStatus("Loading…");
-		LoadButton.IsEnabled      = false;
+		LoadButton.IsEnabled = false;
 		LoadVideoButton.IsEnabled = false;
-		PlayButton.IsEnabled      = false;
+		PlayButton.IsEnabled = false;
 
 		try {
 			using var loggerFactory = LoggerFactory.Create(b =>
@@ -115,47 +115,47 @@ public partial class MainWindow : Window {
 
 			// ── Build the audio pipeline ──────────────────────────────────────
 			var channelSettings = new Dictionary<string, ChannelSettings>();
-			foreach (AudioChannelManifest ch in _manifest.AudioChannels) {
+			foreach (var ch in manifest.AudioChannels) {
 				channelSettings[ch.ChannelId] = new ChannelSettings {
 					Level = 1.0f,
 					Muted = ch.Type == AudioChannelType.VideoAudio,
 				};
 			}
 
-			_audioEngine = new AudioEngine(loggerFactory.CreateLogger<AudioEngine>());
-			_audioEngine.PlaybackEnded += OnPlaybackEnded;
-			_audioEngine.Load(_manifest, channelSettings);
+			audioEngine = new AudioEngine(loggerFactory.CreateLogger<AudioEngine>());
+			audioEngine.PlaybackEnded += OnPlaybackEnded;
+			audioEngine.Load(manifest, channelSettings);
 
 			// ── Build the video pipeline (if a video file was selected) ───────
-			_videoEngine = new VideoEngine(loggerFactory.CreateLogger<VideoEngine>());
+			videoEngine = new VideoEngine(loggerFactory.CreateLogger<VideoEngine>());
 
-			SongManifest manifestForVideo = _manifest;
+			var manifestForVideo = manifest;
 
 			// If the user selected a video file separately (outside of a song folder),
 			// inject it into the manifest as a primary-display video entry.
-			if (_videoFilePath is not null
-				&& !_manifest.VideoFiles.Any(v => v.DisplayIndex == DisplayManager.PrimaryDisplayIndex)) {
+			if (videoFilePath is not null
+				&& !manifest.VideoFiles.Any(v => v.DisplayIndex == DisplayManager.PRIMARY_DISPLAY_INDEX)) {
 				var injectedVideo = new VideoFileManifest(
-					File: new FileInfo(_videoFilePath),
-					DisplayIndex: DisplayManager.PrimaryDisplayIndex,
+					File: new FileInfo(videoFilePath),
+					DisplayIndex: DisplayManager.PRIMARY_DISPLAY_INDEX,
 					Suffix: string.Empty);
 
-				manifestForVideo = _manifest with {
-					VideoFiles = _manifest.VideoFiles.Prepend(injectedVideo).ToList(),
+				manifestForVideo = manifest with {
+					VideoFiles = manifest.VideoFiles.Prepend(injectedVideo).ToList(),
 				};
 			}
 
 			if (manifestForVideo.VideoFiles.Count > 0) {
 				// Create one VlcDisplayWindow per distinct display index referenced by the manifest.
-				foreach (int idx in DisplayManager.GetRequiredDisplayIndices(manifestForVideo))
-					_displayWindows[idx] = DisplayManager.CreateWindowForDisplay(idx);
+				foreach (var idx in DisplayManager.GetRequiredDisplayIndices(manifestForVideo))
+					displayWindows[idx] = DisplayManager.CreateWindowForDisplay(idx);
 
-				await _videoEngine.LoadAll(manifestForVideo, _displayWindows);
+				await videoEngine.LoadAll(manifestForVideo, displayWindows);
 			}
 
 			// ── Synchronised start ────────────────────────────────────────────
-			_syncCoordinator = new SyncCoordinator(loggerFactory.CreateLogger<SyncCoordinator>());
-			_syncCoordinator.Start(_audioEngine, _videoEngine);
+			syncCoordinator = new SyncCoordinator(loggerFactory.CreateLogger<SyncCoordinator>());
+			syncCoordinator.Start(audioEngine, videoEngine);
 
 			SetStatus("Playing");
 			StopButton.IsEnabled = true;
@@ -169,7 +169,7 @@ public partial class MainWindow : Window {
 
 			CleanupAll();
 			SetStatus("Idle");
-			LoadButton.IsEnabled      = true;
+			LoadButton.IsEnabled = true;
 			LoadVideoButton.IsEnabled = true;
 			UpdatePlayButtonState();
 		}
@@ -178,9 +178,9 @@ public partial class MainWindow : Window {
 	private void OnStopClicked(object sender, RoutedEventArgs e) {
 		CleanupAll();
 		SetStatus("Stopped");
-		LoadButton.IsEnabled      = true;
+		LoadButton.IsEnabled = true;
 		LoadVideoButton.IsEnabled = true;
-		StopButton.IsEnabled      = false;
+		StopButton.IsEnabled = false;
 		UpdatePlayButtonState();
 	}
 
@@ -190,13 +190,13 @@ public partial class MainWindow : Window {
 		// Intentionally does NOT call CleanupAll() — _manifest and _videoFilePath
 		// must survive so the user can press Play again for the same song.
 		// Stale _audioEngine and _videoEngine are disposed at the top of OnPlayClicked.
-		_videoEngine?.Stop();
+		videoEngine?.Stop();
 		CloseDisplayWindow();
 		SetStatus("Stopped");
-		LoadButton.IsEnabled      = true;
+		LoadButton.IsEnabled = true;
 		LoadVideoButton.IsEnabled = true;
-		PlayButton.IsEnabled      = _manifest is not null;
-		StopButton.IsEnabled      = false;
+		PlayButton.IsEnabled = manifest is not null;
+		StopButton.IsEnabled = false;
 	}
 
 	// ── Helpers ───────────────────────────────────────────────────────────────
@@ -205,33 +205,33 @@ public partial class MainWindow : Window {
 		StatusLabel.Text = $"Status: {status}";
 
 	private void UpdatePlayButtonState() {
-		PlayButton.IsEnabled = _manifest is not null;
+		PlayButton.IsEnabled = manifest is not null;
 	}
 
 	private void CloseDisplayWindow() {
-		foreach (VlcDisplayWindow window in _displayWindows.Values)
+		foreach (var window in displayWindows.Values)
 			window.Close();
-		_displayWindows.Clear();
+		displayWindows.Clear();
 	}
 
 	private void CleanupAll() {
-		if (_audioEngine is not null) {
-			_audioEngine.PlaybackEnded -= OnPlaybackEnded;
-			_audioEngine.Dispose();
-			_audioEngine = null;
+		if (audioEngine is not null) {
+			audioEngine.PlaybackEnded -= OnPlaybackEnded;
+			audioEngine.Dispose();
+			audioEngine = null;
 		}
 
-		_videoEngine?.Dispose();
-		_videoEngine = null;
+		videoEngine?.Dispose();
+		videoEngine = null;
 
 		CloseDisplayWindow();
 
-		_manifest        = null;
-		_syncCoordinator = null;
+		manifest = null;
+		syncCoordinator = null;
 
 		FolderLabel.Text = "No folder loaded";
-		VideoLabel.Text  = "No video file selected";
-		_videoFilePath   = null;
+		VideoLabel.Text = "No video file selected";
+		videoFilePath = null;
 	}
 
 	/// <inheritdoc />

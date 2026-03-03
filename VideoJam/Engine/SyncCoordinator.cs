@@ -23,14 +23,14 @@ internal sealed class SyncCoordinator {
 	// ── Constants ─────────────────────────────────────────────────────────────
 
 	/// <summary>Log label for the audio-to-video dispatch interval measurement.</summary>
-	private const string AvDispatchLabel = "A/V dispatch Δt";
+	private const string AV_DISPATCH_LABEL = "A/V dispatch Δt";
 
 	/// <summary>Conversion factor from Stopwatch ticks to milliseconds.</summary>
-	private const double MillisecondsPerSecond = 1_000.0;
+	private const double MILLISECONDS_PER_SECOND = 1_000.0;
 
 	// ── State ─────────────────────────────────────────────────────────────────
 
-	private readonly ILogger<SyncCoordinator> _logger;
+	private readonly ILogger<SyncCoordinator> logger;
 
 	// ── Construction ──────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ internal sealed class SyncCoordinator {
 	/// </summary>
 	/// <param name="logger">Logger for diagnostic output.</param>
 	public SyncCoordinator(ILogger<SyncCoordinator> logger) {
-		_logger = logger;
+		this.logger = logger;
 	}
 
 	// ── Public API ────────────────────────────────────────────────────────────
@@ -51,13 +51,13 @@ internal sealed class SyncCoordinator {
 	/// <param name="audio">The loaded audio engine ready for playback.</param>
 	/// <param name="video">The loaded video engine ready for playback.</param>
 	public void Start(IAudioPlayback audio, IVideoPlayback video) {
-		long tStart = audio.Play();
+		var tStart = audio.Play();
 
 		video.Play(tStart);
 
-		long   tEnd    = Stopwatch.GetTimestamp();
-		double deltaMs = (tEnd - tStart) * MillisecondsPerSecond / Stopwatch.Frequency;
+		var tEnd = Stopwatch.GetTimestamp();
+		var deltaMs = (tEnd - tStart) * MILLISECONDS_PER_SECOND / Stopwatch.Frequency;
 
-		_logger.LogDebug("{Label}: {DeltaMs:F2} ms", AvDispatchLabel, deltaMs);
+		logger.LogDebug("{Label}: {DeltaMs:F2} ms", AV_DISPATCH_LABEL, deltaMs);
 	}
 }

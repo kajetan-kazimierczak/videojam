@@ -9,7 +9,7 @@ namespace VideoJam.Services;
 /// </summary>
 public static class SongScanner {
 	// Supported audio stem extensions (lower-case; comparison is case-insensitive).
-	private static readonly HashSet<string> StemExtensions =
+	private static readonly HashSet<string> stemExtensions =
 		new(StringComparer.OrdinalIgnoreCase) { ".wav", ".mp3", ".aiff" };
 
 	/// <summary>
@@ -21,7 +21,7 @@ public static class SongScanner {
 	/// Optional mapping of filename suffix (e.g. <c>"_lyrics"</c>) to display index.
 	/// Each MP4 file's <see cref="VideoFileManifest.DisplayIndex"/> is resolved by looking up
 	/// its suffix in this dictionary. If the suffix is absent or <paramref name="displayRouting"/>
-	/// is <see langword="null"/>, the file is assigned to <see cref="DisplayManager.PrimaryDisplayIndex"/>.
+	/// is <see langword="null"/>, the file is assigned to <see cref="DisplayManager.PRIMARY_DISPLAY_INDEX"/>.
 	/// </param>
 	/// <returns>
 	/// A manifest whose <see cref="SongManifest.SongName"/> is <c>folder.Name</c>
@@ -34,16 +34,16 @@ public static class SongScanner {
 		var audioChannels = new List<AudioChannelManifest>();
 		var videoFiles = new List<VideoFileManifest>();
 
-		foreach (FileInfo file in folder.EnumerateFiles()) {
-			string ext = file.Extension;
+		foreach (var file in folder.EnumerateFiles()) {
+			var ext = file.Extension;
 
-			if (StemExtensions.Contains(ext)) {
+			if (stemExtensions.Contains(ext)) {
 				audioChannels.Add(new AudioChannelManifest(
 					File: file,
 					ChannelId: file.Name,
 					Type: AudioChannelType.Stem));
 			} else if (ext.Equals(".mp4", StringComparison.OrdinalIgnoreCase)) {
-				string suffix = ExtractSuffix(file.Name);
+				var suffix = ExtractSuffix(file.Name);
 
 				videoFiles.Add(new VideoFileManifest(
 					File: file,
@@ -72,8 +72,8 @@ public static class SongScanner {
 	/// </summary>
 	private static string ExtractSuffix(string fileName) {
 		// Strip extension to work with the bare name.
-		string nameStem = Path.GetFileNameWithoutExtension(fileName);
-		int lastUnderscore = nameStem.LastIndexOf('_');
+		var nameStem = Path.GetFileNameWithoutExtension(fileName);
+		var lastUnderscore = nameStem.LastIndexOf('_');
 		return lastUnderscore < 0 ? string.Empty : nameStem[lastUnderscore..];
 	}
 }

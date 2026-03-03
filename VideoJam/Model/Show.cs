@@ -6,10 +6,10 @@ namespace VideoJam.Model;
 /// </summary>
 public sealed class Show {
 	/// <summary>Current <c>.show</c> file schema version.</summary>
-	private const int CurrentSchemaVersion = 1;
+	private const int CURRENT_SCHEMA_VERSION = 1;
 
-	/// <summary>Show file schema version. Current value is <see cref="CurrentSchemaVersion"/>.</summary>
-	public int Version { get; set; } = CurrentSchemaVersion;
+	/// <summary>Show file schema version. Current value is <see cref="CURRENT_SCHEMA_VERSION"/>.</summary>
+	public int Version { get; set; } = CURRENT_SCHEMA_VERSION;
 
 	/// <summary>Ordered list of songs in the setlist.</summary>
 	public List<SongEntry> Songs { get; set; } = [];

@@ -27,34 +27,34 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 	// ── Constants ─────────────────────────────────────────────────────────────
 
 	/// <summary>Milliseconds to wait for the pre-buffer Paused event before giving up.</summary>
-	private const int PreBufferTimeoutMs = 2_000;
+	private const int PRE_BUFFER_TIMEOUT_MS = 2_000;
 
 	/// <summary>VLC option: disable all audio output.</summary>
-	private const string NoAudio = "--no-audio";
+	private const string NO_AUDIO = "--no-audio";
 
 	/// <summary>VLC option: disable on-screen display overlays.</summary>
-	private const string NoOsd = "--no-osd";
+	private const string NO_OSD = "--no-osd";
 
 	// ── State ─────────────────────────────────────────────────────────────────
 
-	private readonly ILogger<VideoEngine> _logger;
+	private readonly ILogger<VideoEngine> logger;
 
 	/// <summary>
-	/// Shared LibVLC instance. Created once with <see cref="NoAudio"/> and <see cref="NoOsd"/>.
+	/// Shared LibVLC instance. Created once with <see cref="NO_AUDIO"/> and <see cref="NO_OSD"/>.
 	/// Must be disposed after all <see cref="MediaPlayer"/> instances.
 	/// </summary>
-	private readonly LibVLC _libVlc;
+	private readonly LibVLC libVlc;
 
 	/// <summary>
 	/// Active slots: one per successfully pre-buffered video file.
 	/// Each slot owns its <see cref="MediaPlayer"/> and the associated display window.
-	/// Access is guarded by <see cref="_slotsLock"/> because Phase 3 may call
+	/// Access is guarded by <see cref="slotsLock"/> because Phase 3 may call
 	/// <see cref="Load"/> concurrently for multiple displays.
 	/// </summary>
-	private readonly List<ActiveSlot> _slots = [];
-	private readonly object _slotsLock = new();
+	private readonly List<ActiveSlot> slots = [];
+	private readonly object slotsLock = new();
 
-	private bool _disposed;
+	private bool disposed;
 
 	// ── Construction ──────────────────────────────────────────────────────────
 
@@ -63,8 +63,8 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 	/// </summary>
 	/// <param name="logger">Logger for diagnostic and warning output.</param>
 	public VideoEngine(ILogger<VideoEngine> logger) {
-		_logger = logger;
-		_libVlc = new LibVLC(NoAudio, NoOsd);
+		this.logger = logger;
+		libVlc = new LibVLC(NO_AUDIO, NO_OSD);
 	}
 
 	// ── Public API ────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 	/// <remarks>
 	/// <para>
 	/// Pre-buffering works by calling <c>MediaPlayer.Play()</c>, waiting for the
-	/// <c>Paused</c> state event (up to <see cref="PreBufferTimeoutMs"/> ms), then seeking
+	/// <c>Paused</c> state event (up to <see cref="PRE_BUFFER_TIMEOUT_MS"/> ms), then seeking
 	/// back to position 0. This primes the VLC decoder pipeline, eliminating the cold-start
 	/// latency (~150–400 ms) from the A/V sync path.
 	/// </para>
@@ -101,28 +101,28 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 		VlcDisplayWindow window,
 		CancellationToken cancellationToken = default) {
 
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(disposed, this);
 
-		VideoFileManifest? videoFile = manifest.VideoFiles
+		var videoFile = manifest.VideoFiles
 			.FirstOrDefault(v => v.DisplayIndex == displayIndex);
 
 		if (videoFile is null) {
-			_logger.LogDebug(
+			logger.LogDebug(
 				"No video file in manifest for display index {DisplayIndex}; window state unchanged.",
 				displayIndex);
 			return;
 		}
 
-		_logger.LogInformation(
+		logger.LogInformation(
 			"Loading video file {File} for display {DisplayIndex}.",
 			videoFile.File.Name, displayIndex);
 
-		var player = new MediaPlayer(_libVlc);
+		var player = new MediaPlayer(libVlc);
 
 		// Render directly into the VlcDisplayWindow's HWND.
 		player.Hwnd = window.Hwnd;
 
-		using var media = new Media(_libVlc, videoFile.File.FullName, FromType.FromPath);
+		using var media = new Media(libVlc, videoFile.File.FullName, FromType.FromPath);
 		player.Media = media;
 
 		// ── Pre-buffer sequence ───────────────────────────────────────────────
@@ -132,7 +132,7 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 		player.Paused += OnPlayerPaused;
 
 		using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		timeoutCts.CancelAfter(PreBufferTimeoutMs);
+		timeoutCts.CancelAfter(PRE_BUFFER_TIMEOUT_MS);
 
 		bool prebufferSucceeded;
 		try {
@@ -144,16 +144,16 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 		}
 		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
 			// Timed out (not cancelled by the caller) — abort this slot.
-			_logger.LogWarning(
+			logger.LogWarning(
 				"Pre-buffer for {File} did not complete within {TimeoutMs} ms. " +
 				"Display {DisplayIndex} will show its fallback image during playback.",
-				videoFile.File.Name, PreBufferTimeoutMs, displayIndex);
+				videoFile.File.Name, PRE_BUFFER_TIMEOUT_MS, displayIndex);
 			prebufferSucceeded = false;
 		}
 		catch (Exception ex) when (ex is not OperationCanceledException) {
 			// LibVLC raised an error (e.g. file not found, codec failure) — treat as a graceful
 			// pre-buffer failure so a single bad file does not abort the entire playback session.
-			_logger.LogWarning(ex,
+			logger.LogWarning(ex,
 				"Pre-buffer for {File} on display {DisplayIndex} failed with an exception. " +
 				"The display will show its fallback image during playback.",
 				videoFile.File.Name, displayIndex);
@@ -174,10 +174,10 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 		// Switch the window to video mode.
 		window.Dispatcher.Invoke(window.ShowVideo);
 
-		lock (_slotsLock)
-			_slots.Add(new ActiveSlot(player, window));
+		lock (slotsLock)
+			slots.Add(new ActiveSlot(player, window));
 
-		_logger.LogDebug(
+		logger.LogDebug(
 			"Video pre-buffer complete for {File} on display {DisplayIndex}.",
 			videoFile.File.Name, displayIndex);
 
@@ -212,9 +212,9 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 		IReadOnlyDictionary<int, VlcDisplayWindow> windows,
 		CancellationToken cancellationToken = default) {
 
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(disposed, this);
 
-		Task[] tasks = windows
+		var tasks = windows
 			.Select(kvp => Load(manifest, kvp.Key, kvp.Value, cancellationToken))
 			.ToArray();
 
@@ -230,16 +230,16 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 	/// Used internally by <see cref="SyncCoordinator"/> for Δt logging.
 	/// </param>
 	public void Play(long audioStartTimestamp) {
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(disposed, this);
 
 		IReadOnlyList<ActiveSlot> snapshot;
-		lock (_slotsLock)
-			snapshot = _slots.ToList();
+		lock (slotsLock)
+			snapshot = slots.ToList();
 
-		foreach (ActiveSlot slot in snapshot)
+		foreach (var slot in snapshot)
 			slot.Player.Play();
 
-		_logger.LogDebug("Dispatched {Count} MediaPlayer(s).", snapshot.Count);
+		logger.LogDebug("Dispatched {Count} MediaPlayer(s).", snapshot.Count);
 	}
 
 	/// <summary>
@@ -248,35 +248,35 @@ internal sealed class VideoEngine : IDisposable, IVideoPlayback {
 	/// Safe to call in any state.
 	/// </summary>
 	public void Stop() {
-		if (_disposed) return;
+		if (disposed) return;
 
 		List<ActiveSlot> slots;
-		lock (_slotsLock) {
-			slots = [.. _slots];
-			_slots.Clear();
+		lock (slotsLock) {
+			slots = [.. this.slots];
+			this.slots.Clear();
 		}
 
-		foreach (ActiveSlot slot in slots) {
+		foreach (var slot in slots) {
 			slot.Player.Stop();
 			slot.Player.Dispose();
 			slot.Window.Dispatcher.Invoke(() => slot.Window.ShowFallback(null));
 		}
 
-		_logger.LogDebug("VideoEngine stopped; all displays reverted to fallback.");
+		logger.LogDebug("VideoEngine stopped; all displays reverted to fallback.");
 	}
 
 	/// <inheritdoc />
 	public void Dispose() {
-		if (_disposed) return;
-		_disposed = true;
+		if (disposed) return;
+		disposed = true;
 
 		// Stop and dispose all MediaPlayer instances BEFORE disposing LibVLC.
 		// Disposing LibVLC while a MediaPlayer is active can crash the native thread.
 		Stop();
 
-		_libVlc.Dispose();
+		libVlc.Dispose();
 
-		_logger.LogDebug("VideoEngine disposed.");
+		logger.LogDebug("VideoEngine disposed.");
 	}
 
 	// ── Private types ─────────────────────────────────────────────────────────

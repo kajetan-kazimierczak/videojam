@@ -42,9 +42,9 @@ public partial class VlcDisplayWindow : Window {
 	/// <param name="width">Width in device-independent pixels.</param>
 	/// <param name="height">Height in device-independent pixels.</param>
 	public void SetBounds(double left, double top, double width, double height) {
-		Left   = left;
-		Top    = top;
-		Width  = width;
+		Left = left;
+		Top = top;
+		Width = width;
 		Height = height;
 	}
 
@@ -54,7 +54,7 @@ public partial class VlcDisplayWindow : Window {
 	/// </summary>
 	/// <param name="image">The bitmap to display, or <see langword="null"/> for solid black.</param>
 	public void ShowFallback(BitmapImage? image) {
-		FallbackImage.Source     = image;
+		FallbackImage.Source = image;
 		FallbackImage.Visibility = Visibility.Visible;
 	}
 

@@ -31,7 +31,7 @@ internal static class DisplayManager {
 	/// </summary>
 	// Phase 4+ note: when DisplayManager gains EDID-based identity, promote this
 	// to a well-known display descriptor rather than a bare integer.
-	public const int PrimaryDisplayIndex = 0;
+	public const int PRIMARY_DISPLAY_INDEX = 0;
 
 	// ── Routing ───────────────────────────────────────────────────────────────
 
@@ -47,10 +47,10 @@ internal static class DisplayManager {
 	/// </param>
 	/// <returns>
 	/// The display index from <paramref name="routing"/> if <paramref name="suffix"/> is present;
-	/// otherwise <see cref="PrimaryDisplayIndex"/>.
+	/// otherwise <see cref="PRIMARY_DISPLAY_INDEX"/>.
 	/// </returns>
 	public static int ResolveDisplayIndex(string suffix, IReadOnlyDictionary<string, int> routing) =>
-		routing.TryGetValue(suffix, out int index) ? index : PrimaryDisplayIndex;
+		routing.TryGetValue(suffix, out var index) ? index : PRIMARY_DISPLAY_INDEX;
 
 	// ── Manifest helpers ──────────────────────────────────────────────────────
 
@@ -85,7 +85,7 @@ internal static class DisplayManager {
 	/// number of connected displays.
 	/// </exception>
 	public static VlcDisplayWindow CreateWindowForDisplay(int displayIndex) {
-		System.Windows.Forms.Screen[] screens = System.Windows.Forms.Screen.AllScreens;
+		var screens = System.Windows.Forms.Screen.AllScreens;
 
 		if (displayIndex < 0 || displayIndex >= screens.Length)
 			throw new ArgumentOutOfRangeException(
@@ -93,22 +93,22 @@ internal static class DisplayManager {
 				$"Display index {displayIndex} is out of range. " +
 				$"{screens.Length} display(s) are currently available.");
 
-		System.Windows.Forms.Screen screen = screens[displayIndex];
+		var screen = screens[displayIndex];
 
 		// WPF window coordinates are expressed in device-independent pixels (DIPs)
 		// relative to the primary monitor's DPI coordinate space. Convert the target
 		// screen's physical pixel bounds to DIPs using the primary screen's DPI scale.
 		// WPF's PerMonitorV2 awareness will apply the correct per-monitor DPI once
 		// the window is shown on its target display.
-		double dpiScaleX = System.Windows.Forms.Screen.PrimaryScreen!.Bounds.Width
-			/ SystemParameters.PrimaryScreenWidth;
-		double dpiScaleY = System.Windows.Forms.Screen.PrimaryScreen!.Bounds.Height
-			/ SystemParameters.PrimaryScreenHeight;
+		var dpiScaleX = System.Windows.Forms.Screen.PrimaryScreen!.Bounds.Width
+		                / SystemParameters.PrimaryScreenWidth;
+		var dpiScaleY = System.Windows.Forms.Screen.PrimaryScreen!.Bounds.Height
+		                / SystemParameters.PrimaryScreenHeight;
 
-		double left   = screen.Bounds.Left   / dpiScaleX;
-		double top    = screen.Bounds.Top    / dpiScaleY;
-		double width  = screen.Bounds.Width  / dpiScaleX;
-		double height = screen.Bounds.Height / dpiScaleY;
+		var left = screen.Bounds.Left / dpiScaleX;
+		var top = screen.Bounds.Top / dpiScaleY;
+		var width = screen.Bounds.Width / dpiScaleX;
+		var height = screen.Bounds.Height / dpiScaleY;
 
 		var window = new VlcDisplayWindow();
 		window.SetBounds(left, top, width, height);

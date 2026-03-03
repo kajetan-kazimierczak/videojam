@@ -6,25 +6,25 @@ namespace VideoJam.Tests;
 /// <summary>Unit tests for <see cref="SongScanner"/>.</summary>
 public sealed class SongScannerTests : IDisposable {
 	// Every test gets its own isolated temp directory.
-	private readonly DirectoryInfo _tempDir;
+	private readonly DirectoryInfo tempDir;
 
 	public SongScannerTests() {
-		_tempDir = new DirectoryInfo(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
-		_tempDir.Create();
+		tempDir = new DirectoryInfo(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
+		tempDir.Create();
 	}
 
-	public void Dispose() => _tempDir.Delete(recursive: true);
+	public void Dispose() => tempDir.Delete(recursive: true);
 
 	// ── helpers ──────────────────────────────────────────────────────────────
 
 	private void CreateFile(string name) =>
-		File.WriteAllText(Path.Combine(_tempDir.FullName, name), string.Empty);
+		File.WriteAllText(Path.Combine(tempDir.FullName, name), string.Empty);
 
 	// ── 5.1 ─────────────────────────────────────────────────────────────────
 
 	[Fact]
 	public void Scan_EmptyFolder_ReturnsManifestWithNoChannelsOrVideoFiles() {
-		SongManifest result = SongScanner.Scan(_tempDir);
+		var result = SongScanner.Scan(tempDir);
 
 		Assert.Empty(result.AudioChannels);
 		Assert.Empty(result.VideoFiles);
@@ -38,7 +38,7 @@ public sealed class SongScannerTests : IDisposable {
 		CreateFile("bass.mp3");
 		CreateFile("keys.aiff");
 
-		SongManifest result = SongScanner.Scan(_tempDir);
+		var result = SongScanner.Scan(tempDir);
 
 		Assert.Equal(3, result.AudioChannels.Count);
 		Assert.All(result.AudioChannels, ch => Assert.Equal(AudioChannelType.Stem, ch.Type));
@@ -55,7 +55,7 @@ public sealed class SongScannerTests : IDisposable {
 	public void Scan_Mp4WithSuffix_ProducesVideoFileManifestAndVideoAudioChannel() {
 		CreateFile("show_lyrics.mp4");
 
-		SongManifest result = SongScanner.Scan(_tempDir);
+		var result = SongScanner.Scan(tempDir);
 
 		// One video file manifest with the correct suffix.
 		Assert.Single(result.VideoFiles);
@@ -73,7 +73,7 @@ public sealed class SongScannerTests : IDisposable {
 	public void Scan_Mp4WithNoSuffix_ProducesVideoFileManifestWithEmptySuffix() {
 		CreateFile("performance.mp4");
 
-		SongManifest result = SongScanner.Scan(_tempDir);
+		var result = SongScanner.Scan(tempDir);
 
 		Assert.Single(result.VideoFiles);
 		Assert.Equal(string.Empty, result.VideoFiles[0].Suffix);
@@ -87,7 +87,7 @@ public sealed class SongScannerTests : IDisposable {
 		CreateFile("cover.png");
 		CreateFile("readme.pdf");
 
-		SongManifest result = SongScanner.Scan(_tempDir);
+		var result = SongScanner.Scan(tempDir);
 
 		Assert.Empty(result.AudioChannels);
 		Assert.Empty(result.VideoFiles);
@@ -100,7 +100,7 @@ public sealed class SongScannerTests : IDisposable {
 		CreateFile("DRUMS.WAV");
 		CreateFile("Bass.Mp3");
 
-		SongManifest result = SongScanner.Scan(_tempDir);
+		var result = SongScanner.Scan(tempDir);
 
 		Assert.Equal(2, result.AudioChannels.Count);
 		Assert.All(result.AudioChannels, ch => Assert.Equal(AudioChannelType.Stem, ch.Type));
@@ -110,10 +110,10 @@ public sealed class SongScannerTests : IDisposable {
 
 	[Fact]
 	public void Scan_SongNameIsFolderName_AndFolderMatchesInput() {
-		SongManifest result = SongScanner.Scan(_tempDir);
+		var result = SongScanner.Scan(tempDir);
 
-		Assert.Equal(_tempDir.Name, result.SongName);
-		Assert.Equal(_tempDir.FullName, result.Folder.FullName);
+		Assert.Equal(tempDir.Name, result.SongName);
+		Assert.Equal(tempDir.FullName, result.Folder.FullName);
 	}
 
 	// ── mixed folder sanity check ────────────────────────────────────────────
@@ -124,7 +124,7 @@ public sealed class SongScannerTests : IDisposable {
 		CreateFile("notes.txt");
 		CreateFile("cover.jpg");
 
-		SongManifest result = SongScanner.Scan(_tempDir);
+		var result = SongScanner.Scan(tempDir);
 
 		Assert.Single(result.AudioChannels);
 		Assert.Equal("drums.wav", result.AudioChannels[0].ChannelId);
@@ -137,7 +137,7 @@ public sealed class SongScannerTests : IDisposable {
 		CreateFile("show_lyrics.mp4");
 		var routing = new Dictionary<string, int> { ["_lyrics"] = 2 };
 
-		SongManifest result = SongScanner.Scan(_tempDir, displayRouting: routing);
+		var result = SongScanner.Scan(tempDir, displayRouting: routing);
 
 		Assert.Single(result.VideoFiles);
 		Assert.Equal(2, result.VideoFiles[0].DisplayIndex);
@@ -148,19 +148,19 @@ public sealed class SongScannerTests : IDisposable {
 		CreateFile("show_visuals.mp4");
 		var routing = new Dictionary<string, int> { ["_lyrics"] = 2 };
 
-		SongManifest result = SongScanner.Scan(_tempDir, displayRouting: routing);
+		var result = SongScanner.Scan(tempDir, displayRouting: routing);
 
 		Assert.Single(result.VideoFiles);
-		Assert.Equal(VideoJam.Engine.DisplayManager.PrimaryDisplayIndex, result.VideoFiles[0].DisplayIndex);
+		Assert.Equal(VideoJam.Engine.DisplayManager.PRIMARY_DISPLAY_INDEX, result.VideoFiles[0].DisplayIndex);
 	}
 
 	[Fact]
 	public void Scan_WithNoRoutingArgument_FallsBackToPrimaryDisplayIndex() {
 		CreateFile("show_visuals.mp4");
 
-		SongManifest result = SongScanner.Scan(_tempDir);
+		var result = SongScanner.Scan(tempDir);
 
 		Assert.Single(result.VideoFiles);
-		Assert.Equal(VideoJam.Engine.DisplayManager.PrimaryDisplayIndex, result.VideoFiles[0].DisplayIndex);
+		Assert.Equal(VideoJam.Engine.DisplayManager.PRIMARY_DISPLAY_INDEX, result.VideoFiles[0].DisplayIndex);
 	}
 }

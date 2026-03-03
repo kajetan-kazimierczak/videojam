@@ -22,8 +22,8 @@ namespace VideoJam.Engine;
 /// </para>
 /// </remarks>
 internal sealed class AudioReader : ISampleProvider, IDisposable {
-	private readonly IDisposable      _owner;
-	private readonly ISampleProvider  _source;
+	private readonly IDisposable owner;
+	private readonly ISampleProvider source;
 
 	/// <param name="owner">
 	/// The <see cref="IDisposable"/> that owns the underlying resource (file handle).
@@ -34,19 +34,19 @@ internal sealed class AudioReader : ISampleProvider, IDisposable {
 	/// or a separate wrapper (e.g. <c>WaveToSampleProvider</c> over <c>AiffFileReader</c>).
 	/// </param>
 	public AudioReader(IDisposable owner, ISampleProvider source) {
-		_owner  = owner;
-		_source = source;
+		this.owner = owner;
+		this.source = source;
 	}
 
 	/// <inheritdoc />
-	public WaveFormat WaveFormat => _source.WaveFormat;
+	public WaveFormat WaveFormat => source.WaveFormat;
 
 	/// <inheritdoc />
 	public int Read(float[] buffer, int offset, int count) =>
-		_source.Read(buffer, offset, count);
+		source.Read(buffer, offset, count);
 
 	/// <summary>
 	/// Disposes the resource <b>owner</b>, releasing the underlying file handle.
 	/// </summary>
-	public void Dispose() => _owner.Dispose();
+	public void Dispose() => owner.Dispose();
 }

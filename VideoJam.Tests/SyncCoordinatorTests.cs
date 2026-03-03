@@ -54,22 +54,22 @@ public sealed class SyncCoordinatorTests {
 
 	[Fact]
 	public void Start_PassesAudioTimestampToVideoPlay() {
-		const long expectedTimestamp = 42_000L;
-		var audio = new FakeAudio { ReturnTimestamp = expectedTimestamp };
+		const long EXPECTED_TIMESTAMP = 42_000L;
+		var audio = new FakeAudio { ReturnTimestamp = EXPECTED_TIMESTAMP };
 		var video = new FakeVideo();
 		var coordinator = CreateCoordinator();
 
 		coordinator.Start(audio, video);
 
 		Assert.Equal(1, video.PlayCallCount);
-		Assert.Equal(expectedTimestamp, video.ReceivedTimestamp);
+		Assert.Equal(EXPECTED_TIMESTAMP, video.ReceivedTimestamp);
 	}
 
 	[Fact]
 	public void Start_IsStateless_CanBeCalledMultipleTimesOnSameInstance() {
 		var coordinator = CreateCoordinator();
 
-		for (int i = 0; i < 3; i++) {
+		for (var i = 0; i < 3; i++) {
 			var audio = new FakeAudio();
 			var video = new FakeVideo();
 
@@ -97,7 +97,7 @@ public sealed class SyncCoordinatorTests {
 
 		long[] expectedTimestamps = [10L, 20L, 30L];
 
-		foreach (long ts in expectedTimestamps) {
+		foreach (var ts in expectedTimestamps) {
 			var audio = new FakeAudio { ReturnTimestamp = ts };
 			var video = new FakeVideo();
 

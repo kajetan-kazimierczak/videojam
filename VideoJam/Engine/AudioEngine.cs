@@ -29,31 +29,31 @@ internal sealed class AudioEngine : IDisposable, IAudioPlayback {
 	// ── Constants ────────────────────────────────────────────────────────────
 
 	/// <summary>Target mix sample rate in Hz.</summary>
-	private const int MixSampleRate = 44_100;
+	private const int MIX_SAMPLE_RATE = 44_100;
 
 	/// <summary>Target mix channel count (stereo).</summary>
-	private const int MixChannelCount = 2;
+	private const int MIX_CHANNEL_COUNT = 2;
 
 	/// <summary>Channel count for a mono source.</summary>
-	private const int MonoChannelCount = 1;
+	private const int MONO_CHANNEL_COUNT = 1;
 
 	/// <summary>Default per-channel volume level (unity gain) when no settings are provided.</summary>
-	private const float DefaultChannelLevel = 1.0f;
+	private const float DEFAULT_CHANNEL_LEVEL = 1.0f;
 
 	/// <summary>Target mix format: 44 100 Hz, 32-bit float, stereo.</summary>
-	private static readonly WaveFormat MixFormat =
-		WaveFormat.CreateIeeeFloatWaveFormat(MixSampleRate, MixChannelCount);
+	private static readonly WaveFormat mixFormat =
+		WaveFormat.CreateIeeeFloatWaveFormat(MIX_SAMPLE_RATE, MIX_CHANNEL_COUNT);
 
 	/// <summary>WASAPI shared-mode latency in milliseconds.</summary>
-	private const int WasapiLatencyMs = 50;
+	private const int WASAPI_LATENCY_MS = 50;
 
 	// ── State ────────────────────────────────────────────────────────────────
 
-	private readonly ILogger<AudioEngine> _logger;
-	private readonly List<IDisposable> _readers = [];
-	private WasapiOut? _wasapiOut;
-	private bool _stoppedExplicitly;
-	private bool _disposed;
+	private readonly ILogger<AudioEngine> logger;
+	private readonly List<IDisposable> readers = [];
+	private WasapiOut? wasapiOut;
+	private bool stoppedExplicitly;
+	private bool disposed;
 
 	// ── Construction ─────────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ internal sealed class AudioEngine : IDisposable, IAudioPlayback {
 	/// </summary>
 	/// <param name="logger">Logger for diagnostic and warning output.</param>
 	public AudioEngine(ILogger<AudioEngine> logger) {
-		_logger = logger;
+		this.logger = logger;
 	}
 
 	// ── Public API ───────────────────────────────────────────────────────────
@@ -88,37 +88,37 @@ internal sealed class AudioEngine : IDisposable, IAudioPlayback {
 	public void Load(
 		SongManifest manifest,
 		IReadOnlyDictionary<string, ChannelSettings> channelSettings) {
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(disposed, this);
 
-		if (_wasapiOut is not null)
+		if (wasapiOut is not null)
 			throw new InvalidOperationException(
 				"AudioEngine is already loaded. Call Stop() before loading a new song.");
 
-		_stoppedExplicitly = false;
+		stoppedExplicitly = false;
 
 		var sampleProviders = new List<ISampleProvider>();
 
-		foreach (AudioChannelManifest channel in manifest.AudioChannels) {
+		foreach (var channel in manifest.AudioChannels) {
 			AudioReader reader;
 			try {
 				reader = CreateReader(channel.File);
 			}
 			catch (Exception ex) {
-				_logger.LogWarning(ex,
+				logger.LogWarning(ex,
 					"Audio channel {ChannelId} ({File}) could not be loaded — the channel will be skipped.",
 					channel.ChannelId, channel.File.Name);
 				continue;
 			}
 
-			_readers.Add(reader);
+			readers.Add(reader);
 
 			// Resample to the common mix format if needed.
-			ISampleProvider resampled = EnsureMixFormat(reader);
+			var resampled = EnsureMixFormat(reader);
 
 			// Apply per-channel volume.
-			float level = channelSettings.TryGetValue(channel.ChannelId, out ChannelSettings? settings)
+			var level = channelSettings.TryGetValue(channel.ChannelId, out var settings)
 				? settings.Level
-				: DefaultChannelLevel;
+				: DEFAULT_CHANNEL_LEVEL;
 
 			var volumeProvider = new VolumeSampleProvider(resampled) { Volume = level };
 			sampleProviders.Add(volumeProvider);
@@ -127,13 +127,13 @@ internal sealed class AudioEngine : IDisposable, IAudioPlayback {
 		// If there are no channels, create a short silence so WasapiOut has something to drain.
 		var mixer = sampleProviders.Count > 0
 			? new MixingSampleProvider(sampleProviders)
-			: new MixingSampleProvider(MixFormat);
+			: new MixingSampleProvider(mixFormat);
 
 		mixer.ReadFully = true; // Continue mixing after individual inputs end; stops when all are done.
 
-		_wasapiOut = new WasapiOut(NAudio.CoreAudioApi.AudioClientShareMode.Shared, WasapiLatencyMs);
-		_wasapiOut.PlaybackStopped += OnWasapiPlaybackStopped;
-		_wasapiOut.Init(mixer);
+		wasapiOut = new WasapiOut(NAudio.CoreAudioApi.AudioClientShareMode.Shared, WASAPI_LATENCY_MS);
+		wasapiOut.PlaybackStopped += OnWasapiPlaybackStopped;
+		wasapiOut.Init(mixer);
 	}
 
 	/// <summary>
@@ -144,12 +144,12 @@ internal sealed class AudioEngine : IDisposable, IAudioPlayback {
 	/// <c>WasapiOut.Play()</c> returns, for use by <see cref="SyncCoordinator"/>.
 	/// </returns>
 	public long Play() {
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(disposed, this);
 
-		if (_wasapiOut is null)
+		if (wasapiOut is null)
 			throw new InvalidOperationException("Call Load() before Play().");
 
-		_wasapiOut.Play();
+		wasapiOut.Play();
 		return Stopwatch.GetTimestamp();
 	}
 
@@ -158,26 +158,26 @@ internal sealed class AudioEngine : IDisposable, IAudioPlayback {
 	/// Safe to call in any state.
 	/// </summary>
 	public void Stop() {
-		if (_disposed) return;
-		if (_wasapiOut is null) return; // Nothing loaded — nothing to stop.
+		if (disposed) return;
+		if (wasapiOut is null) return; // Nothing loaded — nothing to stop.
 
-		_stoppedExplicitly = true;
+		stoppedExplicitly = true;
 
-		_wasapiOut.PlaybackStopped -= OnWasapiPlaybackStopped;
-		_wasapiOut.Stop();
-		_wasapiOut.Dispose();
-		_wasapiOut = null;
+		wasapiOut.PlaybackStopped -= OnWasapiPlaybackStopped;
+		wasapiOut.Stop();
+		wasapiOut.Dispose();
+		wasapiOut = null;
 
-		foreach (IDisposable reader in _readers)
+		foreach (var reader in readers)
 			reader.Dispose();
-		_readers.Clear();
+		readers.Clear();
 	}
 
 	/// <inheritdoc />
 	public void Dispose() {
-		if (_disposed) return;
+		if (disposed) return;
 		Stop();
-		_disposed = true;
+		disposed = true;
 	}
 
 	// ── Private helpers ──────────────────────────────────────────────────────
@@ -187,7 +187,7 @@ internal sealed class AudioEngine : IDisposable, IAudioPlayback {
 	/// based on its extension.
 	/// </summary>
 	private static AudioReader CreateReader(FileInfo file) {
-		string ext = file.Extension;
+		var ext = file.Extension;
 
 		if (ext.Equals(".aiff", StringComparison.OrdinalIgnoreCase)) {
 			var aiffReader = new AiffFileReader(file.FullName);
@@ -205,31 +205,31 @@ internal sealed class AudioEngine : IDisposable, IAudioPlayback {
 	}
 
 	/// <summary>
-	/// Ensures <paramref name="source"/> matches <see cref="MixFormat"/> by
+	/// Ensures <paramref name="source"/> matches <see cref="mixFormat"/> by
 	/// applying sample-rate conversion and/or channel-count upmix as needed,
 	/// each as a distinct step.
 	/// </summary>
 	/// <exception cref="NotSupportedException">
-	/// Thrown if <paramref name="source"/> is stereo but <see cref="MixFormat"/> is mono,
+	/// Thrown if <paramref name="source"/> is stereo but <see cref="mixFormat"/> is mono,
 	/// which is not a supported configuration for this application.
 	/// </exception>
 	private static ISampleProvider EnsureMixFormat(ISampleProvider source) {
-		ISampleProvider result = source;
+		var result = source;
 
 		// Step 1 — Resample if sample rate differs. WdlResamplingSampleProvider
 		// preserves channel count; it does not perform upmixing.
-		if (result.WaveFormat.SampleRate != MixFormat.SampleRate)
-			result = new WdlResamplingSampleProvider(result, MixFormat.SampleRate);
+		if (result.WaveFormat.SampleRate != mixFormat.SampleRate)
+			result = new WdlResamplingSampleProvider(result, mixFormat.SampleRate);
 
 		// Step 2 — Upmix mono → stereo if the mix format requires it.
-		if (result.WaveFormat.Channels == MonoChannelCount && MixFormat.Channels == MixChannelCount)
+		if (result.WaveFormat.Channels == MONO_CHANNEL_COUNT && mixFormat.Channels == MIX_CHANNEL_COUNT)
 			result = new MonoToStereoSampleProvider(result);
 
 		// Guard: a stereo source cannot be downmixed to a mono mix format here.
-		if (result.WaveFormat.Channels > MixFormat.Channels)
+		if (result.WaveFormat.Channels > mixFormat.Channels)
 			throw new NotSupportedException(
 				$"Source has {result.WaveFormat.Channels} channels but the mix format has " +
-				$"{MixFormat.Channels}. Downmixing is not supported.");
+				$"{mixFormat.Channels}. Downmixing is not supported.");
 
 		return result;
 	}
@@ -239,7 +239,7 @@ internal sealed class AudioEngine : IDisposable, IAudioPlayback {
 	/// on the UI thread if the stop was natural (not explicit).
 	/// </summary>
 	private void OnWasapiPlaybackStopped(object? sender, StoppedEventArgs e) {
-		if (_stoppedExplicitly) return;
+		if (stoppedExplicitly) return;
 
 		// Marshal to the WPF UI thread before raising the event.
 		Application.Current?.Dispatcher.InvokeAsync(() => PlaybackEnded?.Invoke(this, EventArgs.Empty));
